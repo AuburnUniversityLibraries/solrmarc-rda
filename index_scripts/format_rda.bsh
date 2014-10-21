@@ -1,0 +1,102 @@
+/**
+ * Format determination script based on RDA
+ */
+import org.marc4j.marc.Record;
+import org.marc4j.marc.ControlField;
+import org.marc4j.marc.DataField;
+
+/**
+ * Determine Record Format(s)
+ *
+ * @param  Record          record
+ * @return Set     format of record
+ */
+public Set getFormatRDA(Record record){
+
+    Set result = new LinkedHashSet();
+    
+    // Basic format uses RDA Carrier Type (MARC Bib 338a)
+    List fields = record.getVariableFields("338");
+    Iterator fieldsIter = fields.iterator();
+    if (fields != null) {
+
+        DataField formatField;
+        String formatString;
+
+        while(fieldsIter.hasNext()) {
+            formatField = (DataField) fieldsIter.next();
+            formatString = formatField.getSubfield('a').getData();
+           
+            if (formatString.equals("volume")) {
+                result.add(getVolumeType(record));
+            }
+            else {
+                result.add(formatString);
+            }
+        }
+    }    
+    
+    // Nothing worked!
+    if (result.isEmpty()) {
+        result.add("Unknown");
+    }
+    
+    return result;
+}
+
+
+public String getVolumeType(Record record) {
+
+    // Local customizations:
+
+    // Our Honors Theses are denoted with the tag "HONORS THESES" in 710|02
+    List honors_theses = record.find("710", "HONORS THESES");
+    if (!honors_theses.isEmpty()) return "Thesis";
+
+    // All other theses and dissertations have "qthes" in 710|02
+    List theses_dissertations = record.find("710", "qthes");
+    if (!theses_dissertations.isEmpty()) return "Thesis";
+
+
+    // General academic volume types
+
+    String leader = record.getLeader().toString();
+    char leaderBit = Character.toUpperCase(leader.charAt(7));
+    ControlField fixedField = (ControlField) record.getVariableField("008");
+    char formatCode;
+
+    switch (leaderBit) {
+
+        // Monograph
+        case 'M':
+
+            // Books: Form of item
+            formatCode = fixedField.getData().toUpperCase().charAt(23);
+
+            if (formatCode == 'O') {
+                return "eBook";
+            } else {
+                return "Book";
+            }
+            break;
+
+        // Serial
+        case 'S':
+
+            // Continuing Resources: Type of continuing resource
+            formatCode = fixedField.getData().toUpperCase().charAt(21);
+
+            switch (formatCode) {
+                case 'N':
+                    return "Newspaper";
+                case 'P':
+                    return "Journal";
+                default:
+                    return "Serial";
+            }
+    }
+
+    // could not determine a specific volume type
+    return "volume";
+}
+
